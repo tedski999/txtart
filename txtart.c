@@ -22,6 +22,18 @@
 #include <string.h>
 #include <ncurses.h>
 
+#define WIDTH (COLS - 2)
+#define HEIGHT (LINES - 2)
+
+WINDOW *handle_resize(WINDOW *w) {
+	clear();
+	border(0, 0, 0, 0, 0, 0, 0, 0);
+	refresh();
+	if (w)
+		delwin(w);
+	return newwin(HEIGHT, WIDTH, 1, 1);
+}
+
 int main(int argc, char **argv) {
 
 	char *active_file = NULL;
@@ -50,14 +62,25 @@ int main(int argc, char **argv) {
 	cbreak();
 	noecho();
 	keypad(stdscr, TRUE);
+	WINDOW *w = handle_resize(NULL);
 
 	bool is_running = true;
 	while (is_running) {
+
+		// Drawing
+		wclear(w);
+		wrefresh(w);
+
+		// Input
 		int ch = getch();
-		if (ch == KEY_F(1))
+		if (ch == KEY_RESIZE) {
+			w = handle_resize(w);
+		} else if (ch == KEY_F(1)) {
 			is_running = false;
+		}
 	}
 
+	delwin(w);
 	endwin();
 	return EXIT_SUCCESS;
 }
