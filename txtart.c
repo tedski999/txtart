@@ -22,22 +22,29 @@
 #include <string.h>
 #include <ncurses.h>
 
+#ifndef TXTART_VERSION
+#define TXTART_VERSION ""
+#endif
+
 #define WIDTH (COLS - 2)
 #define HEIGHT (LINES - 2)
 #define XPADDING (0.1)
 #define YPADDING (0.05)
 
 struct line {
+	int offset;
+	int data_len;
 	char *data;
-	int off, len;
 };
 
-static int canvas_off;
-static int canvas_len;
-static int canvas_wid;
-static struct line *canvas;
+struct canvas {
+	int offset;
+	int max_width;
+	int lines_len;
+	struct line *lines;
+};
 
-WINDOW *handle_resize(WINDOW *w) {
+static WINDOW *handle_resize(WINDOW *w) {
 	erase();
 	border(0, 0, 0, 0, 0, 0, 0, 0);
 	refresh();
@@ -46,74 +53,71 @@ WINDOW *handle_resize(WINDOW *w) {
 	return newwin(HEIGHT, WIDTH, 1, 1);
 }
 
-void write_char_to_canvas(char ch, int x, int y) {
-
-	y += canvas_off;
+static void write_char_to_canvas(struct canvas *c, char ch, int x, int y) {
+	y += c->offset;
 	if (y < 0) {
 		int len = -y;
-		canvas = realloc(canvas, sizeof *canvas * (canvas_len + len));
-		memmove(canvas + len, canvas, sizeof *canvas * canvas_len);
-		memset(canvas, 0, sizeof *canvas * len);
-		canvas_len += len;
-		canvas_off += len;
+		c->lines = realloc(c->lines, sizeof *c->lines * (c->lines_len + len));
+		memmove(c->lines + len, c->lines, sizeof *c->lines * c->lines_len);
+		memset(c->lines, 0, sizeof *c->lines * len);
+		c->lines_len += len;
+		c->offset += len;
 		y = 0;
-	} else if (y >= canvas_len) {
-		int len = y - canvas_len + 1;
-		canvas = realloc(canvas, sizeof *canvas * (canvas_len + len));
-		memset(canvas + canvas_len, 0, sizeof *canvas * len);
-		canvas_len += len;
+	} else if (y >= c->lines_len) {
+		int len = y - c->lines_len + 1;
+		c->lines = realloc(c->lines, sizeof *c->lines * (c->lines_len + len));
+		memset(c->lines + c->lines_len, 0, sizeof *c->lines * len);
+		c->lines_len += len;
 	}
 
-	struct line *line = canvas + y;
-	x += line->off;
+	struct line *line = c->lines + y;
+	x += line->offset;
 	if (x < 0) {
 		int len = -x;
-		line->data = realloc(line->data, line->len + len);
-		memmove(line->data + len, line->data, line->len);
+		line->data = realloc(line->data, line->data_len + len);
+		memmove(line->data + len, line->data, line->data_len);
 		memset(line->data, ' ', len);
-		line->len += len;
-		line->off += len;
+		line->data_len += len;
+		line->offset += len;
 		x = 0;
-	} else if (x >= canvas[y].len) {
-		int len = x - canvas[y].len + 1;
-		line->data = realloc(line->data, line->len + len);
-		memset(line->data + line->len, ' ', len);
-		line->len += len;
+	} else if (x >= line->data_len) {
+		int len = x - line->data_len + 1;
+		line->data = realloc(line->data, line->data_len + len);
+		memset(line->data + line->data_len, ' ', len);
+		line->data_len += len;
 	}
 
-	canvas[y].data[x] = ch;
+	line->data[x] = ch;
 }
 
-void clear_canvas(void) {
-	for (int i = 0; i < canvas_len; i++)
-		free(canvas[i].data);
-	canvas = NULL;
-	canvas_len = 0;
-	canvas_wid = 0;
+static void clear_canvas(struct canvas *c) {
+	for (int i = 0; i < c->lines_len; i++)
+		free(c->lines[i].data);
+	*c = (struct canvas) {0};
 }
 
-bool load_file(char *filename) {
+static bool load_file(struct canvas *c, char *filename) {
 	FILE *fp = fopen(filename, "r");
 	if (fp == NULL)
 		return false;
 
-	clear_canvas();
 	size_t read;
 	struct line *line = NULL;
+	clear_canvas(c);
 	do {
-		canvas_len++;
-		canvas = realloc(canvas, sizeof *canvas * canvas_len);
-		line = canvas + canvas_len - 1;
+		c->lines_len++;
+		c->lines = realloc(c->lines, sizeof *c->lines * c->lines_len);
+		line = c->lines + c->lines_len - 1;
 		// TODO: replace leading whitespace with offset
 		*line = (struct line) {0};
-		line->len = read = getline(&line->data, &(size_t){0}, fp);
-		if (line->data[line->len - 1] == '\n')
-			line->len--;
-		if (line->len > canvas_wid)
-			canvas_wid = line->len;
+		line->data_len = read = getline(&line->data, &(size_t){0}, fp);
+		if (line->data[line->data_len - 1] == '\n')
+			line->data_len--;
+		if (line->data_len > c->max_width)
+			c->max_width = line->data_len;
 	} while (read != -1);
 
-	canvas_len--;
+	c->lines_len--;
 	free(line->data);
 	fclose(fp);
 	return true;
@@ -143,7 +147,8 @@ int main(int argc, char **argv) {
 		}
 	}
 
-	if (active_file && !load_file(active_file)) {
+	struct canvas *c = &(struct canvas) {0};
+	if (active_file && !load_file(c, active_file)) {
 		fprintf(stderr, "Unable to load '%s'.\n", active_file);
 		return EXIT_FAILURE;
 	}
@@ -155,20 +160,23 @@ int main(int argc, char **argv) {
 	WINDOW *w = handle_resize(NULL);
 
 	bool is_running = true;
-	int xview = (canvas_wid - WIDTH) / 2, yview = (canvas_len - HEIGHT) / 2;
-	int xcursor = WIDTH / 2 - 1, ycursor = HEIGHT / 2 - 1;
+	int xview = (c->max_width - WIDTH) / 2;
+	int yview = (c->lines_len - HEIGHT) / 2;
+	int xcursor = WIDTH / 2 - 1;
+	int ycursor = HEIGHT / 2 - 1;
+
 	while (is_running) {
 
 		// Drawing
 		werase(w);
 		for (int yscreen = 0; yscreen < HEIGHT; yscreen++) {
 			for (int xscreen = 0; xscreen < WIDTH; xscreen++) {
-				int ycanvas = yscreen + yview + canvas_off;
-				if (ycanvas < 0 || ycanvas >= canvas_len)
+				int ycanvas = yscreen + yview + c->offset;
+				if (ycanvas < 0 || ycanvas >= c->lines_len)
 					continue;
-				struct line *line = canvas + ycanvas;
-				int xcanvas = xscreen + xview + line->off;
-				if (xcanvas < 0 || xcanvas >= line->len)
+				struct line *line = c->lines + ycanvas;
+				int xcanvas = xscreen + xview + line->offset;
+				if (xcanvas < 0 || xcanvas >= line->data_len)
 					continue;
 				mvwaddch(w, yscreen, xscreen, line->data[xcanvas]);
 			}
@@ -191,7 +199,7 @@ int main(int argc, char **argv) {
 		} else if (ch == KEY_RIGHT) {
 			xcursor++;
 		} else if (ch >= ' ' && ch <= '~') {
-			write_char_to_canvas(ch, xview + xcursor, yview + ycursor);
+			write_char_to_canvas(c, ch, xview + xcursor, yview + ycursor);
 		}
 
 		// Cursor view padding
@@ -213,6 +221,6 @@ int main(int argc, char **argv) {
 
 	delwin(w);
 	endwin();
-	clear_canvas();
+	clear_canvas(c);
 	return EXIT_SUCCESS;
 }
