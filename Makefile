@@ -22,7 +22,7 @@ CFLAGS    := -Wall -pedantic -O3 -DTXTART_VERSION=\"$(VERSION)\"
 LFLAGS    := -lncurses
 
 $(TARGET): $(SRC_FILES)
-	$(CC) $(CFLAGS) $(LFLAGS) $^ -o $@
+	$(CC) $^ $(CFLAGS) $(LFLAGS) -o $@
 
 .PHONY: clean
 clean:
