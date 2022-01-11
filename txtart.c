@@ -24,6 +24,8 @@
 
 #define WIDTH (COLS - 2)
 #define HEIGHT (LINES - 2)
+#define XPADDING (0.1)
+#define YPADDING (0.05)
 
 struct line {
 	char *data;
@@ -115,10 +117,13 @@ int main(int argc, char **argv) {
 	WINDOW *w = handle_resize(NULL);
 
 	bool is_running = true;
+	int xview = (canvas_wid - WIDTH) / 2, yview = (canvas_len - HEIGHT) / 2;
+	int xcursor = WIDTH / 2 - 1, ycursor = HEIGHT / 2 - 1;
 	while (is_running) {
 
 		// Drawing
 		wclear(w);
+		wmove(w, ycursor, xcursor);
 		wrefresh(w);
 
 		// Input
@@ -127,6 +132,30 @@ int main(int argc, char **argv) {
 			w = handle_resize(w);
 		} else if (ch == KEY_F(1)) {
 			is_running = false;
+		} else if (ch == KEY_UP) {
+			ycursor--;
+		} else if (ch == KEY_DOWN) {
+			ycursor++;
+		} else if (ch == KEY_LEFT) {
+			xcursor--;
+		} else if (ch == KEY_RIGHT) {
+			xcursor++;
+		}
+
+		// Cursor view padding
+		if (ycursor < HEIGHT * YPADDING) {
+			yview--;
+			ycursor++;
+		} else if (ycursor >= HEIGHT - HEIGHT * YPADDING - 1) {
+			yview++;
+			ycursor--;
+		}
+		if (xcursor < WIDTH * XPADDING) {
+			xview--;
+			xcursor++;
+		} else if (xcursor >= WIDTH - WIDTH * XPADDING - 1) {
+			xview++;
+			xcursor--;
 		}
 	}
 
