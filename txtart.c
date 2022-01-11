@@ -123,6 +123,18 @@ int main(int argc, char **argv) {
 
 		// Drawing
 		werase(w);
+		for (int yscreen = 0; yscreen < HEIGHT; yscreen++) {
+			for (int xscreen = 0; xscreen < WIDTH; xscreen++) {
+				int ycanvas = yscreen + yview;
+				if (ycanvas < 0 || ycanvas >= canvas_len)
+					continue;
+				struct line *line = canvas + ycanvas;
+				int xcanvas = xscreen + xview;
+				if (xcanvas < 0 || xcanvas >= line->len)
+					continue;
+				mvwaddch(w, yscreen, xscreen, line->data[xcanvas]);
+			}
+		}
 		wmove(w, ycursor, xcursor);
 		wrefresh(w);
 
