@@ -1,6 +1,6 @@
 # txtart
 
-![GitHub Build Workflow](https://github.com/tedski999/txtart/actions/workflows/build.yaml/badge.svg)
+![GitHub Build Workflow](https://github.com/tedski999/txtart/actions/workflows/build.yml/badge.svg)
 
 Simple ncurses ASCII art editor.
 
