@@ -25,6 +25,15 @@
 #define WIDTH (COLS - 2)
 #define HEIGHT (LINES - 2)
 
+struct line {
+	char *data;
+	int len;
+};
+
+static int canvas_len;
+static int canvas_wid;
+static struct line *canvas;
+
 WINDOW *handle_resize(WINDOW *w) {
 	clear();
 	border(0, 0, 0, 0, 0, 0, 0, 0);
@@ -32,6 +41,42 @@ WINDOW *handle_resize(WINDOW *w) {
 	if (w)
 		delwin(w);
 	return newwin(HEIGHT, WIDTH, 1, 1);
+}
+
+void clear_canvas(void) {
+	for (int i = 0; i < canvas_len; i++)
+		free(canvas[i].data);
+	canvas = NULL;
+	canvas_len = 0;
+	canvas_wid = 0;
+}
+
+bool load_file(char *filename) {
+	FILE *fp = fopen(filename, "r");
+	if (fp == NULL)
+		return false;
+
+	clear_canvas();
+	size_t read;
+	struct line *line = NULL;
+	do {
+		canvas_len++;
+		canvas = realloc(canvas, sizeof *canvas * canvas_len);
+		line = canvas + canvas_len - 1;
+		*line = (struct line) { NULL, 0 };
+		line->len = read = getline(&line->data, &(size_t){0}, fp);
+		if (line->data[line->len - 1] == '\n') {
+			line->data[line->len - 1] = '\0';
+			line->len--;
+		}
+		if (line->len > canvas_wid)
+			canvas_wid = line->len;
+	} while (read != -1);
+
+	canvas_len--;
+	free(line->data);
+	fclose(fp);
+	return true;
 }
 
 int main(int argc, char **argv) {
@@ -58,6 +103,11 @@ int main(int argc, char **argv) {
 		}
 	}
 
+	if (active_file && !load_file(active_file)) {
+		fprintf(stderr, "Unable to load '%s'.\n", active_file);
+		return EXIT_FAILURE;
+	}
+
 	initscr();
 	cbreak();
 	noecho();
@@ -82,5 +132,6 @@ int main(int argc, char **argv) {
 
 	delwin(w);
 	endwin();
+	clear_canvas();
 	return EXIT_SUCCESS;
 }
