@@ -37,7 +37,7 @@ static int canvas_wid;
 static struct line *canvas;
 
 WINDOW *handle_resize(WINDOW *w) {
-	clear();
+	erase();
 	border(0, 0, 0, 0, 0, 0, 0, 0);
 	refresh();
 	if (w)
@@ -122,7 +122,7 @@ int main(int argc, char **argv) {
 	while (is_running) {
 
 		// Drawing
-		wclear(w);
+		werase(w);
 		wmove(w, ycursor, xcursor);
 		wrefresh(w);
 
