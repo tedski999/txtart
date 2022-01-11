@@ -88,10 +88,10 @@ int main(int argc, char **argv) {
 		char *arg = argv[i];
 		if (!strcmp(arg, "-h") || !strcmp(arg, "--help") || !strcmp(arg, "-?")) {
 			// TODO: print help
-			printf("txtart v%s - Simple ncurses ASCII art editor\n", TXTART_VERSION);
+			printf("txtart %s - Simple ncurses ASCII art editor\n", TXTART_VERSION);
 			return EXIT_SUCCESS;
 		} else if (!strcmp(arg, "-v") || !strcmp(arg, "--version")) {
-			printf("txtart v%s\n", TXTART_VERSION);
+			printf("txtart %s\n", TXTART_VERSION);
 			return EXIT_SUCCESS;
 		} else if (!strcmp(arg, "-l") || !strcmp(arg, "--load")) {
 			if (++i >= argc) {
